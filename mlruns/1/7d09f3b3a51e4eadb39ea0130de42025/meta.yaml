@@ -1,0 +1,15 @@
+artifact_uri: file:///home/viviane/code/VivianeSimolka/TaxiFareModel/mlruns/1/7d09f3b3a51e4eadb39ea0130de42025/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '1'
+lifecycle_stage: active
+name: ''
+run_id: 7d09f3b3a51e4eadb39ea0130de42025
+run_uuid: 7d09f3b3a51e4eadb39ea0130de42025
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1645528272174
+status: 1
+tags: []
+user_id: unknown
