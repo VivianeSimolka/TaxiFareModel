@@ -1,43 +1,51 @@
 #from matplotlib.pyplot import get
+from lib2to3.pgen2.token import GREATER
 from memoized_property import memoized_property
 import mlflow
 from  mlflow.tracking import MlflowClient
 from sklearn.pipeline import Pipeline
-from sklearn.linear_model import LinearRegression, Ridge, SGDRegressor, Lasso, PoissonRegressor
-from sklearn.svm import SVR
-from sklearn.tree import DecisionTreeRegressor
+#from sklearn.linear_model import LinearRegression, Ridge, SGDRegressor, Lasso, PoissonRegressor
+#from sklearn.svm import SVR
+#from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 import joblib
 from TaxiFareModel.encoders import DistanceTransformer, TimeFeaturesEncoder
 from TaxiFareModel.utils import compute_rmse
 from TaxiFareModel.data import get_data, clean_data
 
-MODELS = {"linear_model": LinearRegression(),
-                        "ridge_model": Ridge(),
-                        "lasso_model": Lasso(),
-                        "sgd_model": SGDRegressor(),
-                       # "poisson_model": PoissonRegressor(),
-                        "svm_model": SVR(),
-                        "tree_model": DecisionTreeRegressor(),
-                        "forest_model": RandomForestRegressor()}
+MODELS = {"forest_model10": RandomForestRegressor(n_estimators=10),
+                    "forest_model50": RandomForestRegressor(n_estimators=50),
+                    "forest_model100": RandomForestRegressor(),
+                    "forest_model1000": RandomForestRegressor(n_estimators=1000),
+                    }
 
 class Trainer:
 
     MLFLOW_URI = "https://mlflow.lewagon.co/"
     EXPERIMENT_NAME = "[DE] [Berlin] [VivianeSimolka] Taxi fare challenge"
-    MODELS = {"linear_model": LinearRegression(),
-                        "ridge_model": Ridge(),
-                        "lasso_model": Lasso(),
-                        "sgd_model": SGDRegressor(),
-                        #"poisson_model": PoissonRegressor(),
-                        "svm_model": SVR(),
-                        "tree_model": DecisionTreeRegressor(),
-                        "forest_model": RandomForestRegressor()}
+    MODELS = {"forest_model": RandomForestRegressor(n_estimators=100,
+                                                                                            criterion='squared_error',
+                                                                                            max_depth=None,
+                                                                                            min_samples_split=50,
+                                                                                            min_samples_leaf=4,
+                                                                                            min_weight_fraction_leaf=0.0,
+                                                                                            max_features='auto',
+                                                                                            max_leaf_nodes=None,
+                                                                                            min_impurity_decrease=0.0,
+                                                                                            bootstrap=True,
+                                                                                            oob_score=False,
+                                                                                            n_jobs=None,
+                                                                                            random_state=None,
+                                                                                            verbose=0,
+                                                                                            warm_start=False,
+                                                                                            ccp_alpha=0.0,
+                                                                                            max_samples=None,)
+                       }
 
-    def __init__(self, X_train, y_train, model="linear_model"):
+    def __init__(self, X_train, y_train, model="forest_model"):
         self.X_train = X_train
         self.y_train = y_train
         self.model_name = model
@@ -59,7 +67,7 @@ class Trainer:
         ], remainder="drop")
      self.pipeline = Pipeline([
             ('preproc', preproc_pipe),
-            ('linear_model', self.model)
+            ('model', self.model)
         ])
      return self.pipeline
 
@@ -117,16 +125,47 @@ class Trainer:
 if __name__ == '__main__':
     #model = "tree_model"
     df = get_data()
-    data = clean_data(df)
+    df = clean_data(df)
     y = df["fare_amount"]
     X = df.drop("fare_amount", axis=1)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+    loop = False
+    grid_status = False
 
-    for model in MODELS.keys():
-        #import ipdb; ipdb.set_trace
-        trainer = Trainer(X_train, y_train, model=model)
-        trainer.run()
-        rmse = trainer.evaluate(X_test, y_test)
-        #trainer.mlflow_run()
-        trainer.mlflow_log_param("model", trainer.model_name)
-        trainer.mlflow_log_metric("rmse", rmse)
+    trainer = Trainer(X_train, y_train)
+    trainer.run()
+    rmse = trainer.evaluate(X_test, y_test)
+    trainer.mlflow_log_param("model", trainer.model_name)
+    trainer.mlflow_log_metric("rmse", rmse)
+
+    if grid_status == True:
+
+        trainer = Trainer(X_train, y_train)
+        trainer.set_pipeline()
+        #print(trainer.pipeline.get_params())
+
+        grid = {#'model__ccp_alpha': [0],
+                # 'model__criterion': ['squared_error'],
+                    #'model__max_depth': None,
+                    #'model__max_features': 'auto',
+                    #'model__max_leaf_nodes': None,
+                    #'model__max_samples': None,
+                    'model__min_samples_leaf': [3,4],
+                    'model__min_samples_split': [25,30, 50],
+                    }
+
+        clf= GridSearchCV(trainer.pipeline, param_grid=grid, n_jobs=-1, cv=5) #, scoring="rmse")
+
+        clf.fit(X_train, y_train)
+
+        print(clf.best_params_)
+
+    if loop == True:
+        for model in MODELS.keys():
+            #import ipdb; ipdb.set_trace
+            trainer = Trainer(X_train, y_train, model=model)
+            trainer.run()
+            rmse = trainer.evaluate(X_test, y_test)
+            #trainer.mlflow_run()
+            trainer.mlflow_log_param("model", trainer.model_name)
+            trainer.mlflow_log_metric("rmse", rmse)
